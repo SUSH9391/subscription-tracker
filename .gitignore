@@ -60,5 +60,10 @@ typings/
 .env.production.local
 .env
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
 # next.js build output
 .next
