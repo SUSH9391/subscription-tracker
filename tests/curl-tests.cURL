@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# ============================================================
+# Subscription Tracker — cURL Test Suite
+# Usage: bash tests/curl-tests.sh
+# Requires: curl, python3 (for JSON parsing)
+# ============================================================
+
+BASE="http://localhost:5500/api/v1"
+TOKEN=""
+USER_ID=""
+SUB_ID=""
+
+echo ""
+echo "============================================"
+echo "  SUBSCRIPTION TRACKER - cURL Test Suite"
+echo "============================================"
+echo ""
+
+# ── HEALTH CHECK ────────────────────────────────────────────
+echo "▶ [HEALTH] GET /"
+curl -s -X GET http://localhost:5500/
+echo -e "\n"
+
+# ── AUTH: SIGN UP ───────────────────────────────────────────
+echo "▶ [AUTH] POST /auth/sign-up"
+SIGNUP_RESPONSE=$(curl -s -X POST "$BASE/auth/sign-up" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test User",
+    "email": "testuser@example.com",
+    "password": "Password123"
+  }')
+echo "$SIGNUP_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$SIGNUP_RESPONSE"
+
+TOKEN=$(echo "$SIGNUP_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['token'])" 2>/dev/null)
+USER_ID=$(echo "$SIGNUP_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['user']['_id'])" 2>/dev/null)
+
+if [ -z "$TOKEN" ]; then
+  echo "⚠️  Sign-up may have failed (user exists?). Trying sign-in..."
+  SIGNIN_RESPONSE=$(curl -s -X POST "$BASE/auth/sign-in" \
+    -H "Content-Type: application/json" \
+    -d '{"email":"testuser@example.com","password":"Password123"}')
+  echo "$SIGNIN_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$SIGNIN_RESPONSE"
+  TOKEN=$(echo "$SIGNIN_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['token'])" 2>/dev/null)
+  USER_ID=$(echo "$SIGNIN_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['user']['_id'])" 2>/dev/null)
+fi
+
+echo ""
+echo "📌 USER_ID : $USER_ID"
+echo "📌 TOKEN   : ${TOKEN:0:40}..."
+echo ""
+
+# ── AUTH: DUPLICATE SIGN UP (expect 409) ────────────────────
+echo "▶ [AUTH] POST /auth/sign-up — duplicate (expect 409)"
+curl -s -X POST "$BASE/auth/sign-up" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test User","email":"testuser@example.com","password":"Password123"}' \
+  | python3 -m json.tool
+echo ""
+
+# ── AUTH: SIGN IN ───────────────────────────────────────────
+echo "▶ [AUTH] POST /auth/sign-in"
+curl -s -X POST "$BASE/auth/sign-in" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"testuser@example.com","password":"Password123"}' \
+  | python3 -m json.tool
+echo ""
+
+# ── USERS ───────────────────────────────────────────────────
+echo "▶ [USERS] GET /users"
+curl -s -X GET "$BASE/users" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [USERS] GET /users/$USER_ID"
+curl -s -X GET "$BASE/users/$USER_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [USERS] PUT /users/$USER_ID"
+curl -s -X PUT "$BASE/users/$USER_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Updated Name"}' \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [USERS] DELETE /users"
+curl -s -X DELETE "$BASE/users" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+# ── SUBSCRIPTIONS ───────────────────────────────────────────
+echo "▶ [SUBS] GET /subscriptions"
+curl -s -X GET "$BASE/subscriptions" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [SUBS] POST /subscriptions — valid"
+SUB_RESPONSE=$(curl -s -X POST "$BASE/subscriptions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{
+    \"name\": \"Netflix\",
+    \"price\": 15.99,
+    \"currency\": \"USD\",
+    \"frequency\": \"monthly\",
+    \"category\": \"entertainment\",
+    \"status\": \"active\",
+    \"startDate\": \"2026-10-01T00:00:00.000Z\",
+    \"renewalDate\": \"2026-11-01T00:00:00.000Z\",
+    \"user\": \"$USER_ID\"
+  }")
+echo "$SUB_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$SUB_RESPONSE"
+SUB_ID=$(echo "$SUB_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('_id',''))" 2>/dev/null)
+echo "📌 SUB_ID: $SUB_ID"
+echo ""
+
+echo "▶ [SUBS] POST /subscriptions — missing fields (expect 400)"
+curl -s -X POST "$BASE/subscriptions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"price": 10, "currency": "USD"}' \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [SUBS] POST /subscriptions — invalid enum (expect 400)"
+curl -s -X POST "$BASE/subscriptions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{
+    \"name\": \"BadSub\",
+    \"price\": 10,
+    \"currency\": \"USD\",
+    \"frequency\": \"biweekly\",
+    \"category\": \"entertainment\",
+    \"startDate\": \"2026-10-01T00:00:00.000Z\",
+    \"renewalDate\": \"2026-11-01T00:00:00.000Z\",
+    \"user\": \"$USER_ID\"
+  }" \
+  | python3 -m json.tool
+echo ""
+
+if [ -n "$SUB_ID" ]; then
+  echo "▶ [SUBS] GET /subscriptions/$SUB_ID"
+  curl -s -X GET "$BASE/subscriptions/$SUB_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    | python3 -m json.tool
+  echo ""
+
+  echo "▶ [SUBS] PUT /subscriptions/$SUB_ID"
+  curl -s -X PUT "$BASE/subscriptions/$SUB_ID" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{"price": 19.99}' \
+    | python3 -m json.tool
+  echo ""
+
+  echo "▶ [SUBS] PUT /subscriptions/$SUB_ID/cancle"
+  curl -s -X PUT "$BASE/subscriptions/$SUB_ID/cancle" \
+    -H "Authorization: Bearer $TOKEN" \
+    | python3 -m json.tool
+  echo ""
+
+  echo "▶ [SUBS] DELETE /subscriptions/$SUB_ID"
+  curl -s -X DELETE "$BASE/subscriptions/$SUB_ID" \
+    -H "Authorization: Bearer $TOKEN" \
+    | python3 -m json.tool
+  echo ""
+else
+  echo "⚠️  Skipping sub detail tests — no SUB_ID (controllers not implemented yet?)"
+  echo ""
+fi
+
+echo "▶ [SUBS] GET /subscriptions/user/$USER_ID"
+curl -s -X GET "$BASE/subscriptions/user/$USER_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+echo "▶ [SUBS] GET /subscriptions/upcoming-renewals"
+curl -s -X GET "$BASE/subscriptions/upcoming-renewals" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+# ── SIGN OUT ────────────────────────────────────────────────
+echo "▶ [AUTH] POST /auth/sign-out"
+curl -s -X POST "$BASE/auth/sign-out" \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -m json.tool
+echo ""
+
+echo "============================================"
+echo "  ✅ Test run complete"
+echo "============================================"
+
