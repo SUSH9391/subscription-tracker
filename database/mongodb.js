@@ -1,27 +1,25 @@
-import { MongoClient } from 'mongodb';
+import mongoose from 'mongoose';
 import dns from 'dns';
-import {DB_URI} from '../config/env.js';
+import { DB_URI } from '../config/env.js';
 
 // Override DNS servers to fix ECONNREFUSED on SRV lookups with some network configs
 dns.setServers(['8.8.8.8', '1.1.1.1']);
-if (!DB_URI){
-    throw new Error('Please define the MONGODB_URI environment variable inside .env.<development/production>.local')
+
+if (!DB_URI) {
+    throw new Error('Please define the DB_URI environment variable inside .env.<development/production>.local');
 }
-const client = new MongoClient(DB_URI);
 
 export async function connectToMongoDB() {
     try {
-        await client.connect();
-        console.log("You successfully connected to MongoDB!");
-
-        return client;
+        await mongoose.connect(DB_URI);
+        console.log("Successfully connected to MongoDB via Mongoose!");
     } catch (err) {
-        console.dir(err);
+        console.error("MongoDB connection error:", err);
         throw err;
     }
 }
 
 // Call this only when your application terminates
 export async function disconnectFromMongoDB() {
-    await client.close();
+    await mongoose.disconnect();
 }

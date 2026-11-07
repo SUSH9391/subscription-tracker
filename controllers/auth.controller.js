@@ -31,7 +31,7 @@ export const signup = async (req, res, next) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Create new user
-        const newUser = await User.create(
+        const [newUser] = await User.create(
             [{
                 name,
                 email,
@@ -82,6 +82,33 @@ export const signup = async (req, res, next) => {
 // SIGNIN
 export const signin = async (req, res, next) => {
     // TODO: Implement login logic
+    try {
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            const error = new Error('User not found');
+            error.statusCode = 404;
+            throw error;
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            const error = new Error('Invalid password');
+            error.statusCode = 401
+            throw error;
+        }
+        const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        res.status(200).json({
+            success: true,
+            message: 'User signed in sucessfully',
+            data: {
+                token,
+                user
+            }
+        })
+    } catch (error) {
+        next(error);
+    }
 };
 
 
