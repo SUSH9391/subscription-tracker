@@ -7,59 +7,58 @@ const subscriptionSchema = new mongoose.Schema({
         minLength: 2,
         maxLength: 100,
     },
-    price:{
+    price: {
         type: Number,
         required: [true, 'Subscription price is required'],
         min: [0, 'Price must be greater than 0'],
 
     },
-    currency:{
+    currency: {
         type: String,
-        enum:['USD', 'EUR', 'RUPEES']
+        enum: ['USD', 'EUR', 'RUPEES']
     },
-    frequency:{
+    frequency: {
         type: String,
-        enum:['daily', 'weekly','monthly','yearly'],
+        enum: ['daily', 'weekly', 'monthly', 'yearly'],
     },
-    category:{
+    category: {
         type: String,
-        enum : ['sports','news','entertainment','lifestyle','technology','finance','politics','others'],
+        enum: ['sports', 'news', 'entertainment', 'lifestyle', 'technology', 'finance', 'politics', 'others'],
         required: true
     },
-    status:{
+    status: {
         type: String,
-        enum:['active','inactive', 'expired'],
+        enum: ['active', 'inactive', 'expired'],
         default: 'active',
     },
-    startDate:{
+    startDate: {
         type: Date,
-        required:true,
-        validate :{
+        required: true,
+        validate: {
             validator: (value) => value <= new Date(),
             message: 'Start date must be in the past'
         }
     },
-    renewalDate:{
+    renewalDate: {
         type: Date,
-        required:true,
-        validate :{
-            validator: function (value)
-            { return value > this.startDate},
+        required: true,
+        validate: {
+            validator: function (value) { return value > this.startDate },
             message: 'Renewal date must be greater than the start date'
         }
     },
-    user:{
+    user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-        index:true,
+        index: true,
     }
 
-}, {timestamps: true});
+}, { timestamps: true });
 
 
-//this function will auto calculate the renewal date if not calculated
-subscriptionSchema.pre('save', function(next) {
+// Auto-calculate renewal date and update status if expired
+subscriptionSchema.pre('validate', function () {
     if (!this.renewalDate) {
         const renewalPeriods = {
             daily: 1,
@@ -71,11 +70,10 @@ subscriptionSchema.pre('save', function(next) {
         renewal.setDate(renewal.getDate() + renewalPeriods[this.frequency]);
         this.renewalDate = renewal;
     }
-    // if the renewal date has passed then we are supposed to return the status and expired and this can be done by current date > renewal date
+
     if (this.renewalDate < new Date()) {
         this.status = 'expired';
     }
-    next();
 });
 const Subscription = mongoose.model('Subscription', subscriptionSchema);
 export default Subscription;
