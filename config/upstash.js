@@ -1,7 +1,7 @@
-import { Client as WorkflowClient } from '@upstash/workflow'; // ✅ Capital 'W' for the Class
+import { Client as WorkflowClient } from '@upstash/workflow';
 import { QSTASH_TOKEN, QSTASH_URL } from './env.js';
 
-export const workflowClient = new WorkflowClient({ // ✅ Lowercase 'w' for the instance
+export const workflowClient = new WorkflowClient({
     baseUrl: QSTASH_URL,
     token: QSTASH_TOKEN,
 });
