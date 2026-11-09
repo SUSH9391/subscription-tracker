@@ -1,7 +1,5 @@
 import { Router } from 'express';
-import { workflowClient } from '../config/upstash.js';
+import { sendReminders } from '../controllers/workflow.controller.js';
 const workflowRouter = Router();
-workflowRouter.get('/', (req, res) => {
-
-})
+workflowRouter.post('/subscription/reminder', sendReminders)
 export default workflowRouter;
