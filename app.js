@@ -9,7 +9,7 @@ import cookieParser from "cookie-parser";
 import arcjetMiddleware from './middlewares/arcjet.middleware.js';
 import morgan from 'morgan';
 import workflowRouter from './routes/workflow.routes.js';
-
+import { processOutboxMessages } from './services/outbox.service.js';
 
 const app = express();
 app.use(express.json()); //this helps json data send in data and api calls
@@ -30,5 +30,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, async () => {
     console.log(`Subscription tracker API is running on http://localhost:${PORT}`);
     await connectToMongoDB();
+    setInterval(processOutboxMessages, 5000);
 });
 export default app;
